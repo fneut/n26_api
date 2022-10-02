@@ -1,0 +1,9 @@
+click==7.1.2
+container-app-conf==5.2.2
+more-itertools==8.7.0
+pytimeparse==1.1.8
+pyyaml==6.0
+requests==2.25.1
+tabulate==0.8.9
+tenacity==8.0.1
+urllib3>=1.26.5
