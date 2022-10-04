@@ -228,6 +228,53 @@ def _print_json(data: dict or list):
     json_data = json.dumps(data, indent=2)
     click.echo(json_data)
 
+def _insert_newlines(text: str, n=40):
+    """
+    Inserts a newline into the given text every n characters.
+    :param text: the text to break
+    :param n:
+    :return:
+    """
+    if not text:
+        return ""
+
+    lines = []
+    for i in range(0, len(text), n):
+        lines.append(text[i:i + n])
+    return '\n'.join(lines)
+
+def _datetime_extractor(key: str, date_only: bool = False):
+    """
+    Helper function to extract a datetime value from a dict
+    :param key: the dictionary key used to access the value
+    :param date_only: removes the time from the output
+    :return: an extractor function
+    """
+
+    if date_only:
+        fmt = "%x"
+    else:
+        fmt = "%x %X"
+
+    def extractor(dictionary: dict):
+        value = dictionary.get(key)
+        time = _timestamp_ms_to_date(value)
+        if time is None:
+            return None
+        else:
+            time = time.astimezone()
+            return time.strftime(fmt)
+
+    return extractor
+
+def _timestamp_ms_to_date(epoch_ms: int) -> datetime or None:
+    """
+    Convert millisecond timestamp to UTC datetime.
+    :param epoch_ms: milliseconds since 1970 in CET
+    :return: a UTC datetime object
+    """
+    if epoch_ms:
+        return datetime.fromtimestamp(epoch_ms / 1000, timezone.utc)
 
 if __name__ == "__main__":
     cli()

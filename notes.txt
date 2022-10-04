@@ -1,0 +1,1 @@
+to run a script from command line, just do ¨python n26/cli.py¨
