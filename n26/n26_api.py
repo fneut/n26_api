@@ -58,17 +58,18 @@ class Api(object):
         """
         saves refresh token in csv
         """
-        if REFRESH_TOKEN_KEY not in self.token_data:
+        token_data = self.token_data
+        if REFRESH_TOKEN_KEY not in token_data:
             raise ValueError("Refresh token not found in tokens")
         else:
             file_exists = os.path.isfile(f"{self.path}/refresh_token.csv")
-            with open(f"{self.path}/refresh_token.csv", "a") as f:
+            with open(f"{self.path}/refresh_token.csv", "a", newline='') as f:
                 csv_writer = csv.DictWriter(f, fieldnames=FIELD_NAMES, delimiter=",")
                 if not file_exists:
                     csv_writer.writeheader()
                 line_to_write = {
-                    REFRESH_TOKEN_KEY: self.token_data[REFRESH_TOKEN_KEY],
-                    "expires_in": self.token_data["expires_in"],
+                    REFRESH_TOKEN_KEY: token_data[REFRESH_TOKEN_KEY],
+                    "expires_in": token_data["expires_in"],
                     "time": time.time(),
                 }
                 csv_writer.writerow(line_to_write)
@@ -184,7 +185,7 @@ class Api(object):
         self.get_access_and_refresh_token(dict_for_login)
         print(self.token_data)
         self.token_data[EXPIRATION_TIME_KEY] = time.time() + self.token_data["expires_in"]
-        self.save_refresh_token(self.token_data)
+        self.save_refresh_token()
         self.new_auth = False
 
     def get_token(self):
@@ -333,6 +334,7 @@ if __name__ == "__main__":
     user_1 = Api()
     user_1.get_refresh_token_from_valid_refresh_token()
     user_1.authenticate()
+    #print(user_1.get_transactions())
 
 
 # {

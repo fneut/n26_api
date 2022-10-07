@@ -173,6 +173,25 @@ def transactions(
 
 @cli.command()
 @auth_decorator
+def addresses():
+    """ Show account addresses """
+    addresses_data = API_CLIENT.get_addresses().get('data')
+    if JSON_OUTPUT:
+        _print_json(addresses_data)
+        return
+
+    headers = ['Type', 'Country', 'City', 'Zip code', 'Street', 'Number',
+               'Address line 1', 'Address line 2',
+               'Created', 'Updated']
+    keys = ['type', 'countryName', 'cityName', 'zipCode', 'streetName', 'houseNumberBlock',
+            'addressLine1', 'addressLine2',
+            _datetime_extractor('created'), _datetime_extractor('updated')]
+    table = _create_table_from_dict(headers, keys, addresses_data, numalign='right')
+    click.echo(table)
+
+
+@cli.command()
+@auth_decorator
 def balance():
     """Show account balance"""
     balance_data = API_CLIENT.get_balance()
@@ -203,7 +222,7 @@ def _parse_from_to_timestamps(
     from_timestamp = None
     to_timestamp = None
     if param_from is not None:
-        from_timestamp = int(param_from.timestamp() * 1000)
+        from_timestamp = int(param_from.timestamp() * 1000) # from ms to s
         if param_to is None:
             # if --from is set, --to must also be set
             param_to = datetime.utcnow()
