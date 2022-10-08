@@ -1,3 +1,4 @@
+from logging import raiseExceptions
 import requests
 from tenacity import retry, stop_after_delay, wait_fixed
 from os.path import dirname, abspath
@@ -18,11 +19,12 @@ ACCESS_TOKEN_KEY = "access_token"
 REFRESH_TOKEN_KEY = "refresh_token"
 GRANT_TYPE_PASSWORD = "password"
 BASE_URL_DE = "https://api.tech26.de"
+BASE_URL_GLOBAL = "https://api.tech26.global"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
 BASIC_AUTH_HEADERS = {"Authorization": "Basic bmF0aXZld2ViOg=="}
 CHALLENGE_TYPE = "oob"
 CHALLENGE_TYPE_FOR_MFA = "mfa_oob"
-FIELD_NAMES = ["refresh_token", "expires_in", "time"]
+FIELD_NAMES = [REFRESH_TOKEN_KEY, EXPIRATION_TIME_KEY, "time"]
 
 
 class Api(object):
@@ -47,7 +49,9 @@ class Api(object):
                 csv_reader = csv.DictReader(f)
                 if REFRESH_TOKEN_KEY in csv_reader.fieldnames:
                     history_of_refresh_token = [line[REFRESH_TOKEN_KEY] for line in csv_reader]
-                    self.token_data = {REFRESH_TOKEN_KEY: history_of_refresh_token[-1]}
+                    self.token_data = {
+                        REFRESH_TOKEN_KEY: history_of_refresh_token[-1],
+                        }
                     print(f"history_of_refresh_token: {history_of_refresh_token}\n")
                 else:
                     raise AssertionError("This should not happen")
@@ -69,7 +73,7 @@ class Api(object):
                     csv_writer.writeheader()
                 line_to_write = {
                     REFRESH_TOKEN_KEY: token_data[REFRESH_TOKEN_KEY],
-                    "expires_in": token_data["expires_in"],
+                    EXPIRATION_TIME_KEY: token_data[EXPIRATION_TIME_KEY],
                     "time": time.time(),
                 }
                 csv_writer.writerow(line_to_write)
@@ -102,7 +106,7 @@ class Api(object):
         the subsequent Authentication requests.
         """
         response = requests.post(
-            f"{BASE_URL_DE}/oauth2/token",
+            f"{BASE_URL_GLOBAL}/oauth2/token",
             data=self.config["account"],
             headers={
                 **BASIC_AUTH_HEADERS,
@@ -113,6 +117,7 @@ class Api(object):
             raise ValueError(
                 "Unexpected response for initial auth request: {}".format(response.text)
             )
+        print(response.json())
         mfa_token = response.json()["mfaToken"]
         return mfa_token
 
@@ -130,6 +135,7 @@ class Api(object):
                 "Content-Type": "application/json",
             },
         )
+        print(response.json())
         return response
 
     @retry(wait=wait_fixed(5), stop=stop_after_delay(60))
@@ -151,56 +157,61 @@ class Api(object):
                 "host_url": "{{host_url}}"
             }
         """
+        if self.new_auth:
+            url_to_query = BASE_URL_DE
+        else: 
+            url_to_query = BASE_URL_GLOBAL
+        print(url_to_query)
         response = requests.post(
-            BASE_URL_DE + "/oauth2/token",
+            url_to_query + "/oauth2/token",
             data=dict_for_login,
-            headers={
-                **BASIC_AUTH_HEADERS,
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers=BASIC_AUTH_HEADERS,
+            # headers={
+            #     **BASIC_AUTH_HEADERS,
+            #     "Content-Type": "application/x-www-form-urlencoded",
+            # },
         )
-        print(response.status_code)
+        print(response.json())
         if response.status_code == 200:
             tokens = response.json()
             self.token_data = tokens
+            response.close()
             return True
         else:
-            raise Exception("Waiting for authorisation in paired device")
+            raise Exception("Waiting for authorisation in paired device")  
+
+    
+    def refresh_authenticate(self):
+        dict_for_login = {
+            "grant_type": REFRESH_TOKEN_KEY,
+            REFRESH_TOKEN_KEY: self.token_data[REFRESH_TOKEN_KEY],
+        }
+        self._get_token(dict_for_login)
+
 
     def authenticate(self):
-        if self.new_auth:
-            print("starting new auth process")
-            mfa_token = self.get_mfa_token
-            print("done with mfa_token")
-            self.get_notification_in_paired_device(mfa_token)
-            dict_for_login = {
-                "mfaToken": mfa_token,
-                "grant_type": CHALLENGE_TYPE_FOR_MFA,
-            }
-        elif not self.new_auth:
-            dict_for_login = {
-                REFRESH_TOKEN_KEY: self.token_data[REFRESH_TOKEN_KEY],
-                "grant_type": REFRESH_TOKEN_KEY,
-            }
-        self.get_access_and_refresh_token(dict_for_login)
-        print(self.token_data)
-        self.token_data[EXPIRATION_TIME_KEY] = time.time() + self.token_data["expires_in"]
-        self.save_refresh_token()
-        self.new_auth = False
+        print("starting new auth process")
+        mfa_token = self.get_mfa_token
+        print("done with mfa_token")
+        self.get_notification_in_paired_device(mfa_token)
+        dict_for_login = {
+            "mfaToken": mfa_token,
+            "grant_type": CHALLENGE_TYPE_FOR_MFA,
+        }
+        self._get_token(dict_for_login)
 
-    def get_token(self):
-        """
-        Returns the access token to use for api authentication.
-        If a token has been requested before it will be reused if it is still valid.
-        If the previous token has expired it will be refreshed.
-        If no token has been requested it will be requested from the server.
-        :return: the access token
-        """
-        if not self._validate_token(self.token_data):  # token expired
-            self.get_refresh_token_from_valid_refresh_token()
-            self.authenticate()
 
-        return self.token_data[ACCESS_TOKEN_KEY]
+    def _get_token(self,data_for_login):
+        if not self._validate_token(self.token_data): # no access token or access token expired
+            print(f"getting token due to possible expired token, logging into session or new session ({self.new_auth})")
+            self.get_access_and_refresh_token(data_for_login)
+            self.token_data[EXPIRATION_TIME_KEY] = time.time() + self.token_data["expires_in"]
+            print(self.token_data)
+            self.save_refresh_token()
+            self.new_auth = False
+        else:
+            print("no need to reload token (not expired yet)")
+
 
     @staticmethod
     def _validate_token(token_data: dict):
@@ -209,11 +220,11 @@ class Api(object):
         :param token_data: the token data to check
         :return: true if valid, false otherwise
         """
-        if EXPIRATION_TIME_KEY not in token_data:
-            # there was a problem adding the expiration_time property
+        if (ACCESS_TOKEN_KEY not in token_data) or (EXPIRATION_TIME_KEY not in token_data):
+            # new_auth = False, but fresh log in, or maybe there was an error adding the expiration time
             return False
         elif time.time() >= token_data[EXPIRATION_TIME_KEY]:
-            # token has expired
+            # token has expired during session
             return False
 
         return ACCESS_TOKEN_KEY in token_data and token_data[ACCESS_TOKEN_KEY]
@@ -307,7 +318,9 @@ class Api(object):
         :param headers: custom headers
         :return: the response parsed as a json
         """
-        access_token = self.get_token()
+
+        self.refresh_authenticate()
+        access_token = self.token_data[ACCESS_TOKEN_KEY]
         _headers = {"Authorization": "Bearer {}".format(access_token)}
         if headers is not None:
             _headers.update(headers)
@@ -333,30 +346,10 @@ class Api(object):
 if __name__ == "__main__":
     user_1 = Api()
     user_1.get_refresh_token_from_valid_refresh_token()
-    user_1.authenticate()
-    #print(user_1.get_transactions())
+    if user_1.new_auth:
+        user_1.authenticate()
+    else:
+        user_1.refresh_authenticate()
 
+    print(user_1.get_transactions())
 
-# {
-#     "userMessage": {
-#         "title": "Confirmation pending",
-#         "detail": "Please confirm your login using your paired device, and try again.",
-#     },
-#     "error_description": "MFA token was not yet confirmed",
-#     "detail": "MFA token was not yet confirmed",
-#     "type": "authorization_pending",
-#     "error": "authorization_pending",
-#     "title": "authorization_pending",
-#     "status": 400,
-# }
-
-
-# def save_refresh_token(self):
-#     if REFRESH_TOKEN_KEY not in self.token_data:
-#         raise ValueError("Refresh token not found in tokens")
-#     else:
-#         with open("refresh_token.txt", "a") as f:
-#             f.write(
-#                 f"refresh_token:{self.token_data['refresh_token']}:expires_in:{self.token_data['expires_in']}:time:{time.time()}\n"
-#             )
-# except (IOError, OSError, FileNotFoundError) as error:
