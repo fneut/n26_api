@@ -117,7 +117,7 @@ class Api(object):
             raise ValueError(
                 "Unexpected response for initial auth request: {}".format(response.text)
             )
-        print(response.json())
+        print(response.json(),"\n")
         mfa_token = response.json()["mfaToken"]
         return mfa_token
 
@@ -135,7 +135,7 @@ class Api(object):
                 "Content-Type": "application/json",
             },
         )
-        print(response.json())
+        print(response.json(),"\n")
         return response
 
     @retry(wait=wait_fixed(5), stop=stop_after_delay(60))
@@ -171,7 +171,7 @@ class Api(object):
             #     "Content-Type": "application/x-www-form-urlencoded",
             # },
         )
-        print(response.json())
+        print(response.json(),"\n")
         if response.status_code == 200:
             tokens = response.json()
             self.token_data = tokens
@@ -190,9 +190,9 @@ class Api(object):
 
 
     def authenticate(self):
-        print("starting new auth process")
+        print("starting new auth process","\n")
         mfa_token = self.get_mfa_token
-        print("done with mfa_token")
+        print("done with mfa_token","\n")
         self.get_notification_in_paired_device(mfa_token)
         dict_for_login = {
             "mfaToken": mfa_token,
@@ -203,14 +203,14 @@ class Api(object):
 
     def _get_token(self,data_for_login):
         if not self._validate_token(self.token_data): # no access token or access token expired
-            print(f"getting token due to possible expired token, logging into session or new session ({self.new_auth})")
+            print(f"getting token due to possible expired token, logging into session or new session ({self.new_auth})","\n")
             self.get_access_and_refresh_token(data_for_login)
             self.token_data[EXPIRATION_TIME_KEY] = time.time() + self.token_data["expires_in"]
-            print(self.token_data)
+            print(self.token_data,"\n")
             self.save_refresh_token()
             self.new_auth = False
         else:
-            print("no need to reload token (not expired yet)")
+            print("no need to reload token (not expired yet)","\n")
 
 
     @staticmethod
@@ -300,6 +300,21 @@ class Api(object):
                 "lastId": last_id,
             },
         )
+
+    def get_statistics(self, from_time: int = 0, to_time: int = int(time.time()) * 1000) -> dict:
+        """
+        Get statistics in a given time frame
+        :param from_time: Timestamp - milliseconds since 1970 in CET
+        :param to_time: Timestamp - milliseconds since 1970 in CET
+        """
+
+        if not from_time:
+            from_time = 0
+
+        if not to_time:
+            to_time = int(time.time()) * 1000
+
+        return self._do_request(GET, BASE_URL_DE + '/api/smrt/statistics/categories/%s/%s' % (from_time, to_time))
 
     def _do_request(
         self,

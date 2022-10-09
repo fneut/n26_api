@@ -1,3 +1,5 @@
+from os.path import dirname, abspath
+
 import click
 import n26.n26_api as api
 from datetime import datetime, timezone
@@ -16,7 +18,7 @@ import functools
 from tabulate import tabulate
 import webbrowser
 
-
+PATH = dirname(dirname(abspath(__file__)))
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 API_CLIENT = api.Api()
 
@@ -51,11 +53,16 @@ def auth_decorator(func: callable):
 @click.option(
     "-json", default=False, type=bool, is_flag=True
 )  # this should be a variable named json
-def cli(json: bool):
+@click.option(
+    "-save", default=False, type=bool, is_flag=True
+)  # this should be a variable named json
+def cli(json: bool, save: bool):
     """Interact with the https://n26.com API via the command line."""
     print(json)
     global JSON_OUTPUT
     JSON_OUTPUT = json
+    global SAVE_JSON
+    SAVE_JSON = save
 
 
 @cli.command()
@@ -128,7 +135,7 @@ def transactions(
     )
 
     if JSON_OUTPUT:
-        _print_json(transactions_data)
+        _print_json(transactions_data, "transactions")
         return
 
     lines = []
@@ -234,8 +241,24 @@ def _parse_from_to_timestamps(
 
     return from_timestamp, to_timestamp
 
+@cli.command()
+@click.option('--from', 'param_from', default=None, type=click.DateTime(DATETIME_FORMATS),
+              help='Start time limit for statistics.')
+@click.option('--to', 'param_to', default=None, type=click.DateTime(DATETIME_FORMATS),
+              help='End time limit for statistics.')
+@auth_decorator
+def statistics(param_from: datetime or None, param_to: datetime or None):
+    """Show your n26 statistics"""
 
-def _print_json(data: dict or list):
+    from_timestamp, to_timestamp = _parse_from_to_timestamps(param_from, param_to)
+    statistics_data = API_CLIENT.get_statistics(from_time=from_timestamp, to_time=to_timestamp)
+
+    if JSON_OUTPUT:
+        _print_json(statistics_data, "statistics")
+        return
+
+
+def _print_json(data: dict or list, name: str):
     """
     Pretty-Prints the given object to the  console
     :param data: data to print
@@ -245,6 +268,9 @@ def _print_json(data: dict or list):
     # json.dumps() function converts a Python object into a json string.
 
     json_data = json.dumps(data, indent=2)
+    if SAVE_JSON:
+        with open(f'{PATH}/data_to_work_{name}.json', 'w') as outfile:
+            json.dump(data, outfile,indent=2)
     click.echo(json_data)
 
 def _insert_newlines(text: str, n=40):

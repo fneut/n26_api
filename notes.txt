@@ -1,3 +1,4 @@
 to run a script from command line, just do ¨python n26/cli.py¨
 if time per sesion is longer than 2 hours, i need to reauthenticate, using BASE_URL_GLOBAL for the mfa.
 Then, i can refresh as many times as needed using BASE_URL_GLOBAL and storing. 
+n26  -json transactions --limit 20   
