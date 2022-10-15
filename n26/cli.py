@@ -71,7 +71,7 @@ def info():
     """Get account information"""
     account_info = API_CLIENT.get_account_info()
     if JSON_OUTPUT:
-        _print_json(account_info)
+        _print_json(account_info,"","account_info")
         return
 
     lines = [
@@ -135,7 +135,7 @@ def transactions(
     )
 
     if JSON_OUTPUT:
-        _print_json(transactions_data, "transactions")
+        _print_json(transactions_data,"", "transactions")
         return
 
     lines = []
@@ -184,7 +184,7 @@ def addresses():
     """ Show account addresses """
     addresses_data = API_CLIENT.get_addresses().get('data')
     if JSON_OUTPUT:
-        _print_json(addresses_data)
+        _print_json(addresses_data,"addresses")
         return
 
     headers = ['Type', 'Country', 'City', 'Zip code', 'Street', 'Number',
@@ -203,7 +203,7 @@ def balance():
     """Show account balance"""
     balance_data = API_CLIENT.get_balance()
     if JSON_OUTPUT:
-        _print_json(balance_data)
+        _print_json(balance_data,"balance")
         return
 
     amount = balance_data.get("availableBalance")
