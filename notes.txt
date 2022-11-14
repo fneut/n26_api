@@ -11,6 +11,7 @@ CT: Credit Transfer? Transfer from someone to my main account
 
 
 https://github.com/n26/psd2-tpp-docs/blob/main/doc/assets/openapi/additional_api_spec.md
+https://medium.com/overlander/connecting-to-rds-from-local-over-tcp-operation-timed-out-5cfc819f402c
 
 Transaction Type	Transaction Code
 Authorization Accepted / Rejected	PMNT-MCRD-UPCT
